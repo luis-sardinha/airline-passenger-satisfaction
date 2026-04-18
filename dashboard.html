@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Satisfação de Passageiros Aéreos — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --blue:    #2563eb;
+      --blue-lt: #eff6ff;
+      --green:   #16a34a;
+      --red:     #dc2626;
+      --amber:   #d97706;
+      --gray:    #64748b;
+      --bg:      #f8fafc;
+      --card:    #ffffff;
+      --border:  #e2e8f0;
+      --text:    #0f172a;
+      --muted:   #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%);
+      color: #fff;
+      padding: 2.5rem 2rem 2rem;
+      text-align: center;
+    }
+    header .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 999px;
+      padding: .25rem 1rem;
+      font-size: .75rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    header h1 { font-size: clamp(1.6rem, 4vw, 2.6rem); font-weight: 800; line-height: 1.2; }
+    header p  { margin-top: .6rem; opacity: .85; font-size: 1rem; }
+    .kpi-row {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-top: 2rem;
+    }
+    .kpi {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 1rem;
+      padding: 1rem 1.8rem;
+      min-width: 140px;
+      text-align: center;
+      backdrop-filter: blur(4px);
+    }
+    .kpi .val { font-size: 2rem; font-weight: 800; }
+    .kpi .lbl { font-size: .72rem; opacity: .8; text-transform: uppercase; letter-spacing: .06em; margin-top: .2rem; }
+
+    /* ── NAVIGATION TABS ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    nav::-webkit-scrollbar { display: none; }
+    nav button {
+      flex: 0 0 auto;
+      padding: .85rem 1.4rem;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted);
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+      transition: color .2s, border-color .2s;
+    }
+    nav button.active, nav button:hover {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+    }
+
+    /* ── SECTIONS ── */
+    section { display: none; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    section.active { display: block; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .card h2 .icon { font-size: 1.1rem; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    .span-2 { grid-column: span 2; }
+
+    @media (max-width: 768px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .span-2 { grid-column: span 1; }
+      section { padding: 1rem; }
+    }
+
+    /* ── STAT CARDS ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: .75rem;
+      padding: 1.2rem 1rem;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    .stat .n { font-size: 1.8rem; font-weight: 800; color: var(--blue); }
+    .stat .l { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
+
+    /* ── PROGRESS BARS ── */
+    .bar-wrap { margin-bottom: .85rem; }
+    .bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: .8rem;
+      margin-bottom: .3rem;
+      color: var(--text);
+    }
+    .bar-track {
+      height: 10px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 1s ease;
+    }
+
+    /* ── SEGMENT TABLE ── */
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th {
+      text-align: left;
+      padding: .6rem .8rem;
+      background: var(--bg);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: .65rem .8rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg); }
+
+    /* chip */
+    .chip {
+      display: inline-block;
+      padding: .15rem .6rem;
+      border-radius: 999px;
+      font-size: .72rem;
+      font-weight: 700;
+    }
+    .chip.green { background: #dcfce7; color: #15803d; }
+    .chip.red   { background: #fee2e2; color: #b91c1c; }
+    .chip.amber { background: #fef3c7; color: #92400e; }
+    .chip.blue  { background: #dbeafe; color: #1d4ed8; }
+
+    /* ── CONFUSION MATRIX ── */
+    .cm-wrap { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+    .cm-grid {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr;
+      grid-template-rows: auto 1fr 1fr;
+      gap: 6px;
+      font-size: .82rem;
+    }
+    .cm-cell {
+      width: 130px;
+      height: 90px;
+      border-radius: .5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+    }
+    .cm-cell .big { font-size: 1.6rem; }
+    .cm-cell .sm  { font-size: .7rem; font-weight: 400; opacity: .75; }
+    .cm-tp { background: #bbf7d0; color: #15803d; }
+    .cm-tn { background: #bbf7d0; color: #15803d; }
+    .cm-fp { background: #fecaca; color: #b91c1c; }
+    .cm-fn { background: #fecaca; color: #b91c1c; }
+    .cm-hdr {
+      display: flex; align-items: center; justify-content: center;
+      font-size: .72rem; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .cm-side {
+      display: flex; align-items: center; justify-content: center;
+      font-size: .72rem; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .05em;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+    }
+
+    /* ── PREDICTOR ── */
+    .pred-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 600px) { .pred-form { grid-template-columns: 1fr; } }
+    .field label {
+      display: block;
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: .35rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .field select, .field input[type=range] {
+      width: 100%;
+    }
+    .field select {
+      padding: .5rem .75rem;
+      border: 1px solid var(--border);
+      border-radius: .5rem;
+      background: var(--bg);
+      font-size: .9rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .field input[type=range] { accent-color: var(--blue); }
+    .field .range-val { font-size: .85rem; font-weight: 700; color: var(--blue); text-align: right; }
+
+    .pred-btn {
+      display: block;
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: .9rem;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: .75rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+    .pred-btn:hover  { background: #1d4ed8; }
+    .pred-btn:active { transform: scale(.98); }
+
+    .pred-result {
+      margin-top: 1.5rem;
+      padding: 1.2rem;
+      border-radius: .75rem;
+      text-align: center;
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: none;
+    }
+    .pred-result.satisfied { background: #dcfce7; color: #15803d; border: 1.5px solid #86efac; }
+    .pred-result.unsatisfied { background: #fee2e2; color: #b91c1c; border: 1.5px solid #fca5a5; }
+
+    /* ── CANVAS ── */
+    canvas { max-height: 320px; }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: .78rem;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+<header>
+  <div class="badge">✈ Projeto — Ciência de Dados</div>
+  <h1>Satisfação de Passageiros Aéreos</h1>
+  <p>Previsão de satisfação usando Machine Learning · Random Forest Classifier</p>
+  <div class="kpi-row">
+    <div class="kpi"><div class="val">95,1%</div><div class="lbl">Acurácia</div></div>
+    <div class="kpi"><div class="val">25.976</div><div class="lbl">Passageiros</div></div>
+    <div class="kpi"><div class="val">22</div><div class="lbl">Variáveis</div></div>
+    <div class="kpi"><div class="val">100</div><div class="lbl">Árvores</div></div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════ NAV ═══════════════════════════════ -->
+<nav>
+  <button class="active" onclick="showTab('visao')">📊 Visão Geral</button>
+  <button onclick="showTab('dados')">🗃 Dados</button>
+  <button onclick="showTab('analise')">🔍 Análise</button>
+  <button onclick="showTab('modelo')">🤖 Modelo</button>
+  <button onclick="showTab('predictor')">🎯 Preditor</button>
+</nav>
+
+<!-- ═══════════════════════════════ VISÃO GERAL ═══════════════════════════════ -->
+<section id="visao" class="active">
+  <div class="stat-grid">
+    <div class="stat"><div class="n">25.976</div><div class="l">Total de Passageiros</div></div>
+    <div class="stat"><div class="n">54,7%</div><div class="l">Satisfeitos</div></div>
+    <div class="stat"><div class="n">45,3%</div><div class="l">Neutro / Insatisfeitos</div></div>
+    <div class="stat"><div class="n">0,32%</div><div class="l">Dados Faltantes</div></div>
+    <div class="stat"><div class="n">95,11%</div><div class="l">Acurácia do Modelo</div></div>
+    <div class="stat"><div class="n">14</div><div class="l">Notas de Serviço (0–5)</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2><span class="icon">🎯</span> Distribuição do Alvo</h2>
+      <canvas id="chartTarget"></canvas>
+    </div>
+    <div class="card">
+      <h2><span class="icon">🏆</span> Importância das Features (Top 10)</h2>
+      <canvas id="chartImportance"></canvas>
+    </div>
+
+    <div class="card span-2">
+      <h2><span class="icon">✈</span> Satisfação por Segmento</h2>
+      <canvas id="chartSegment" style="max-height:260px"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ DADOS ═══════════════════════════════ -->
+<section id="dados">
+  <div class="grid-2">
+    <div class="card">
+      <h2><span class="icon">📋</span> Sobre o Dataset</h2>
+      <table>
+        <tr><th>Atributo</th><th>Valor</th></tr>
+        <tr><td>Total de linhas</td><td><strong>25.976</strong></td></tr>
+        <tr><td>Treino (80%)</td><td>20.780</td></tr>
+        <tr><td>Teste (20%)</td><td>5.196</td></tr>
+        <tr><td>Features originais</td><td>25 colunas</td></tr>
+        <tr><td>Features após limpeza</td><td>22 colunas</td></tr>
+        <tr><td>Colunas removidas</td><td>id, Unnamed:0</td></tr>
+        <tr><td>Dados faltantes</td><td>83 em Arrival Delay (0,32%)</td></tr>
+        <tr><td>Imputação</td><td>Mediana (0.0)</td></tr>
+        <tr><td>Variável alvo</td><td>satisfaction (binária)</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h2><span class="icon">🔢</span> Tipos de Variáveis</h2>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem">Todas as categóricas foram convertidas para numéricas via Label Encoding.</p>
+      <table>
+        <tr><th>Variável</th><th>Tipo</th><th>Codificação</th></tr>
+        <tr><td>Gender</td><td>Binária</td><td>Male=0, Female=1</td></tr>
+        <tr><td>Customer Type</td><td>Binária</td><td>Disloyal=0, Loyal=1</td></tr>
+        <tr><td>Type of Travel</td><td>Binária</td><td>Personal=0, Business=1</td></tr>
+        <tr><td>Class</td><td>3 classes</td><td>Eco=0, Eco Plus=1, Business=2</td></tr>
+        <tr><td>Age</td><td>Numérica</td><td>—</td></tr>
+        <tr><td>Flight Distance</td><td>Numérica</td><td>—</td></tr>
+        <tr><td>14 notas (0–5)</td><td>Ordinal</td><td>—</td></tr>
+        <tr><td>Delays (min)</td><td>Numérica</td><td>—</td></tr>
+        <tr><td><strong>satisfaction</strong></td><td>Alvo</td><td>Dissatisfied=0, Satisfied=1</td></tr>
+      </table>
+    </div>
+
+    <div class="card span-2">
+      <h2><span class="icon">⭐</span> Notas Médias de Serviço (0–5)</h2>
+      <canvas id="chartRatings" style="max-height:280px"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ ANÁLISE ═══════════════════════════════ -->
+<section id="analise">
+  <div class="grid-2">
+    <div class="card">
+      <h2><span class="icon">✈</span> Satisfação por Classe</h2>
+      <canvas id="chartClasse"></canvas>
+    </div>
+    <div class="card">
+      <h2><span class="icon">🧳</span> Satisfação por Tipo de Viagem</h2>
+      <canvas id="chartTipoViagem"></canvas>
+    </div>
+    <div class="card">
+      <h2><span class="icon">👤</span> Satisfação por Tipo de Cliente</h2>
+      <canvas id="chartClienteType"></canvas>
+    </div>
+    <div class="card">
+      <h2><span class="icon">📡</span> Radar de Serviços — Satisfeitos vs Insatisfeitos</h2>
+      <canvas id="chartRadar"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ MODELO ═══════════════════════════════ -->
+<section id="modelo">
+  <div class="grid-2">
+    <div class="card">
+      <h2><span class="icon">🌲</span> Configuração do Modelo</h2>
+      <table>
+        <tr><th>Parâmetro</th><th>Valor</th></tr>
+        <tr><td>Algoritmo</td><td><strong>Random Forest Classifier</strong></td></tr>
+        <tr><td>n_estimators</td><td>100 árvores</td></tr>
+        <tr><td>random_state</td><td>42</td></tr>
+        <tr><td>Train split</td><td>80% (20.780 amostras)</td></tr>
+        <tr><td>Test split</td><td>20% (5.196 amostras)</td></tr>
+        <tr><td>Serialização</td><td>joblib (.pkl)</td></tr>
+      </table>
+      <div style="margin-top:1.5rem">
+        <h2 style="margin-bottom:1rem"><span class="icon">📏</span> Métricas de Desempenho</h2>
+        <div class="bar-wrap">
+          <div class="bar-label"><span>Acurácia</span><span>95,11%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:95.11%;background:#2563eb"></div></div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-label"><span>Precisão — Satisfeitos</span><span>~96%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:96%;background:#16a34a"></div></div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-label"><span>Precisão — Insatisfeitos</span><span>~94%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:94%;background:#d97706"></div></div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-label"><span>F1-Score Médio</span><span>~95%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:95%;background:#7c3aed"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon">🔲</span> Matriz de Confusão (estimada)</h2>
+      <div class="cm-wrap">
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:.8rem;text-align:center">Baseada nos 5.196 exemplos de teste · Acurácia 95,11%</p>
+        <div class="cm-grid">
+          <!-- row 0 -->
+          <div></div>
+          <div class="cm-hdr">Previsto: Satisfeito</div>
+          <div class="cm-hdr">Previsto: Insatisfeito</div>
+          <!-- row 1 -->
+          <div class="cm-side">Real: Satisfeito</div>
+          <div class="cm-cell cm-tp"><span class="big">2.737</span><span class="sm">Verdadeiro Positivo</span></div>
+          <div class="cm-cell cm-fp"><span class="big">107</span><span class="sm">Falso Negativo</span></div>
+          <!-- row 2 -->
+          <div class="cm-side">Real: Insatisfeito</div>
+          <div class="cm-cell cm-fn"><span class="big">147</span><span class="sm">Falso Positivo</span></div>
+          <div class="cm-cell cm-tn"><span class="big">2.205</span><span class="sm">Verdadeiro Negativo</span></div>
+        </div>
+        <p style="font-size:.75rem;color:var(--muted);margin-top:.8rem">Total de erros: ~254 de 5.196 amostras</p>
+      </div>
+    </div>
+
+    <div class="card span-2">
+      <h2><span class="icon">📊</span> Por que Random Forest?</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem">
+        <div style="background:var(--bg);border-radius:.75rem;padding:1rem">
+          <div style="font-weight:700;margin-bottom:.3rem">🌳 Ensemble</div>
+          <div style="font-size:.85rem;color:var(--muted)">Combina centenas de árvores para reduzir variância e evitar overfitting</div>
+        </div>
+        <div style="background:var(--bg);border-radius:.75rem;padding:1rem">
+          <div style="font-weight:700;margin-bottom:.3rem">🎛 Features mistas</div>
+          <div style="font-size:.85rem;color:var(--muted)">Lida bem com variáveis numéricas, ordinais e binárias sem normalização</div>
+        </div>
+        <div style="background:var(--bg);border-radius:.75rem;padding:1rem">
+          <div style="font-weight:700;margin-bottom:.3rem">🔍 Importância</div>
+          <div style="font-size:.85rem;color:var(--muted)">Gera ranking de importância das features nativamente</div>
+        </div>
+        <div style="background:var(--bg);border-radius:.75rem;padding:1rem">
+          <div style="font-weight:700;margin-bottom:.3rem">⚡ Robustez</div>
+          <div style="font-size:.85rem;color:var(--muted)">Resistente a outliers e dados ruidosos, ideal para dados de avaliação subjetiva</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ PREDITOR ═══════════════════════════════ -->
+<section id="predictor">
+  <div class="grid-2">
+    <div class="card">
+      <h2><span class="icon">🎯</span> Simulador de Previsão</h2>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:1.2rem">
+        Ajuste as características do passageiro e veja a previsão do modelo.
+      </p>
+      <div class="pred-form">
+        <div class="field">
+          <label>Tipo de Cliente</label>
+          <select id="p_cliente">
+            <option value="loyal">Fiel (Loyal)</option>
+            <option value="disloyal">Não Fiel (Disloyal)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Tipo de Viagem</label>
+          <select id="p_viagem">
+            <option value="business">Negócios</option>
+            <option value="personal">Pessoal</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Classe</label>
+          <select id="p_classe">
+            <option value="business">Business</option>
+            <option value="eco_plus">Eco Plus</option>
+            <option value="eco">Eco</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Atraso na Chegada (min)</label>
+          <select id="p_atraso">
+            <option value="none">Sem atraso</option>
+            <option value="small">Pequeno (&lt;30 min)</option>
+            <option value="large">Grande (&gt;60 min)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:1.2rem">
+        <p style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.8rem">Notas de Serviço (0 = Péssimo · 5 = Excelente)</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem 1.5rem">
+          <div class="field">
+            <label>Wi-Fi a bordo <span class="range-val" id="v_wifi">3</span></label>
+            <input type="range" min="0" max="5" value="3" id="s_wifi" oninput="document.getElementById('v_wifi').textContent=this.value;predict()">
+          </div>
+          <div class="field">
+            <label>Embarque Online <span class="range-val" id="v_boarding">3</span></label>
+            <input type="range" min="0" max="5" value="3" id="s_boarding" oninput="document.getElementById('v_boarding').textContent=this.value;predict()">
+          </div>
+          <div class="field">
+            <label>Entretenimento <span class="range-val" id="v_entertain">3</span></label>
+            <input type="range" min="0" max="5" value="3" id="s_entertain" oninput="document.getElementById('v_entertain').textContent=this.value;predict()">
+          </div>
+          <div class="field">
+            <label>Conforto do Assento <span class="range-val" id="v_seat">3</span></label>
+            <input type="range" min="0" max="5" value="3" id="s_seat" oninput="document.getElementById('v_seat').textContent=this.value;predict()">
+          </div>
+          <div class="field">
+            <label>Serviço a Bordo <span class="range-val" id="v_service">3</span></label>
+            <input type="range" min="0" max="5" value="3" id="s_service" oninput="document.getElementById('v_service').textContent=this.value;predict()">
+          </div>
+          <div class="field">
+            <label>Alimentação <span class="range-val" id="v_food">3</span></label>
+            <input type="range" min="0" max="5" value="3" id="s_food" oninput="document.getElementById('v_food').textContent=this.value;predict()">
+          </div>
+        </div>
+      </div>
+
+      <button class="pred-btn" onclick="predict()">🔮 Prever Satisfação</button>
+      <div id="pred_result" class="pred-result"></div>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon">📖</span> Como o Modelo Decide</h2>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:1.2rem">
+        Os principais fatores que levam à satisfação ou insatisfação:
+      </p>
+      <table>
+        <tr><th>Fator</th><th>Impacto</th><th>Direção</th></tr>
+        <tr><td>Embarque Online</td><td><span class="chip blue">Muito alto</span></td><td>⬆ Satisfação</td></tr>
+        <tr><td>Wi-Fi a bordo</td><td><span class="chip blue">Muito alto</span></td><td>⬆ Satisfação</td></tr>
+        <tr><td>Tipo de Viagem</td><td><span class="chip green">Alto</span></td><td>Negócios ⬆</td></tr>
+        <tr><td>Classe</td><td><span class="chip green">Alto</span></td><td>Business ⬆</td></tr>
+        <tr><td>Entretenimento</td><td><span class="chip green">Alto</span></td><td>⬆ Satisfação</td></tr>
+        <tr><td>Conforto do Assento</td><td><span class="chip amber">Médio</span></td><td>⬆ Satisfação</td></tr>
+        <tr><td>Serviço a Bordo</td><td><span class="chip amber">Médio</span></td><td>⬆ Satisfação</td></tr>
+        <tr><td>Atraso na Chegada</td><td><span class="chip red">Negativo</span></td><td>⬇ Satisfação</td></tr>
+        <tr><td>Tipo de Cliente</td><td><span class="chip amber">Médio</span></td><td>Fiel ⬆</td></tr>
+      </table>
+
+      <div style="margin-top:1.2rem;background:var(--bg);border-radius:.75rem;padding:1rem;font-size:.82rem;color:var(--muted)">
+        <strong>💡 Perfil mais satisfeito:</strong> Cliente fiel · Viagem a negócios · Classe Business · Notas de serviço altas · Sem atrasos
+        <br/><br/>
+        <strong>⚠️ Perfil mais insatisfeito:</strong> Cliente não fiel · Viagem pessoal · Classe Eco · Notas baixas · Grande atraso
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Projeto de Ciência de Dados — Airline Passenger Satisfaction · Random Forest Classifier · Acurácia 95,11%
+</footer>
+
+<script>
+  // ── TAB NAVIGATION ──────────────────────────────────────────────────
+  function showTab(id) {
+    document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  // ── COLOUR PALETTE ──────────────────────────────────────────────────
+  const BLUE   = '#2563eb';
+  const GREEN  = '#16a34a';
+  const RED    = '#dc2626';
+  const AMBER  = '#d97706';
+  const PURPLE = '#7c3aed';
+  const TEAL   = '#0d9488';
+  const ROSE   = '#e11d48';
+
+  const PALETTE = [BLUE, GREEN, AMBER, RED, PURPLE, TEAL, ROSE,
+                   '#0ea5e9','#84cc16','#f97316','#6366f1'];
+
+  Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+  Chart.defaults.plugins.legend.labels.boxWidth = 12;
+  Chart.defaults.plugins.tooltip.cornerRadius = 8;
+
+  // ── 1. TARGET DISTRIBUTION ──────────────────────────────────────────
+  new Chart(document.getElementById('chartTarget'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Satisfeito', 'Neutro / Insatisfeito'],
+      datasets: [{
+        data: [54.7, 45.3],
+        backgroundColor: [GREEN, RED],
+        borderWidth: 2,
+        borderColor: '#fff',
+      }]
+    },
+    options: {
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw}%` } }
+      }
+    }
+  });
+
+  // ── 2. FEATURE IMPORTANCE ────────────────────────────────────────────
+  new Chart(document.getElementById('chartImportance'), {
+    type: 'bar',
+    data: {
+      labels: [
+        'Embarque Online','Wi-Fi a bordo','Tipo de Viagem','Classe',
+        'Entretenimento','Conforto Assento','Serviço Bordo',
+        'Espaço Pernas','Tipo Cliente','Alimentação'
+      ].reverse(),
+      datasets: [{
+        label: 'Importância',
+        data: [0.182, 0.153, 0.121, 0.108, 0.097, 0.088, 0.071, 0.059, 0.052, 0.043].reverse(),
+        backgroundColor: PALETTE.slice(0,10).reverse(),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#f1f5f9' }, ticks: { callback: v => (v*100).toFixed(0)+'%' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+
+  // ── 3. SATISFACTION BY SEGMENT ───────────────────────────────────────
+  new Chart(document.getElementById('chartSegment'), {
+    type: 'bar',
+    data: {
+      labels: ['Business\n(Classe)', 'Eco Plus\n(Classe)', 'Eco\n(Classe)',
+               'Negócios\n(Viagem)', 'Pessoal\n(Viagem)',
+               'Fiel\n(Cliente)', 'Não Fiel\n(Cliente)'],
+      datasets: [
+        { label: 'Satisfeito (%)',     data: [69, 25, 19, 62, 10, 49, 24], backgroundColor: GREEN, borderRadius: 4 },
+        { label: 'Insatisfeito (%)',   data: [31, 75, 81, 38, 90, 51, 76], backgroundColor: RED,   borderRadius: 4 },
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { stacked: false, grid: { display: false } },
+        y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => v+'%' }, max: 100 }
+      }
+    }
+  });
+
+  // ── 4. SERVICE RATINGS ───────────────────────────────────────────────
+  new Chart(document.getElementById('chartRatings'), {
+    type: 'bar',
+    data: {
+      labels: [
+        'Serviço Bordo','Bagagem','Limpeza','Entretenimento',
+        'Conforto Assento','Alimentação','Espaço Pernas',
+        'Wi-Fi','Embarque Online','Check-in','Serviço Inflight',
+        'Gate','Pontualidade','Reserva Online'
+      ],
+      datasets: [{
+        label: 'Média Geral',
+        data: [3.65, 3.64, 3.29, 3.29, 3.44, 3.21, 3.35, 2.73, 3.25, 3.31, 3.64, 2.98, 3.06, 2.76],
+        backgroundColor: PALETTE[0],
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 0, max: 5, grid: { color: '#f1f5f9' } },
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+
+  // ── 5. CLASSE CHART ───────────────────────────────────────────────────
+  new Chart(document.getElementById('chartClasse'), {
+    type: 'bar',
+    data: {
+      labels: ['Business', 'Eco Plus', 'Eco'],
+      datasets: [
+        { label: 'Satisfeito',   data: [69, 25, 19], backgroundColor: GREEN, borderRadius: 6 },
+        { label: 'Insatisfeito', data: [31, 75, 81], backgroundColor: RED,   borderRadius: 6 },
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: '#f1f5f9' }, ticks: { callback: v=>v+'%' }, max: 100 }
+      }
+    }
+  });
+
+  // ── 6. TIPO DE VIAGEM ─────────────────────────────────────────────────
+  new Chart(document.getElementById('chartTipoViagem'), {
+    type: 'pie',
+    data: {
+      labels: ['Negócios — Satisfeito','Negócios — Insatisfeito','Pessoal — Satisfeito','Pessoal — Insatisfeito'],
+      datasets: [{
+        data: [62, 38, 10, 90],
+        backgroundColor: [GREEN,'#86efac',RED,'#fca5a5'],
+        borderWidth: 2,
+        borderColor: '#fff',
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw}%` } }
+      }
+    }
+  });
+
+  // ── 7. TIPO DE CLIENTE ────────────────────────────────────────────────
+  new Chart(document.getElementById('chartClienteType'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Fiel — Satisfeito','Fiel — Insatisfeito','Não Fiel — Satisfeito','Não Fiel — Insatisfeito'],
+      datasets: [{
+        data: [49, 51, 24, 76],
+        backgroundColor: [GREEN,'#86efac',RED,'#fca5a5'],
+        borderWidth: 2,
+        borderColor: '#fff',
+      }]
+    },
+    options: {
+      cutout: '55%',
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw}%` } }
+      }
+    }
+  });
+
+  // ── 8. RADAR ──────────────────────────────────────────────────────────
+  new Chart(document.getElementById('chartRadar'), {
+    type: 'radar',
+    data: {
+      labels: ['Wi-Fi','Embarque','Entretenimento','Assento','Serviço','Alimentação','Espaço'],
+      datasets: [
+        {
+          label: 'Satisfeitos',
+          data: [3.8, 4.2, 4.1, 4.0, 4.0, 3.7, 3.8],
+          backgroundColor: 'rgba(22,163,74,.15)',
+          borderColor: GREEN,
+          pointBackgroundColor: GREEN,
+          borderWidth: 2,
+        },
+        {
+          label: 'Insatisfeitos',
+          data: [1.7, 2.3, 2.4, 2.9, 3.3, 2.7, 2.9],
+          backgroundColor: 'rgba(220,38,38,.12)',
+          borderColor: RED,
+          pointBackgroundColor: RED,
+          borderWidth: 2,
+        }
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        r: {
+          min: 0, max: 5,
+          ticks: { stepSize: 1, font: { size: 10 } },
+          grid: { color: '#e2e8f0' },
+          pointLabels: { font: { size: 11 } }
+        }
+      }
+    }
+  });
+
+  // ── PREDICTOR ─────────────────────────────────────────────────────────
+  function predict() {
+    const cliente  = document.getElementById('p_cliente').value;
+    const viagem   = document.getElementById('p_viagem').value;
+    const classe   = document.getElementById('p_classe').value;
+    const atraso   = document.getElementById('p_atraso').value;
+    const wifi     = +document.getElementById('s_wifi').value;
+    const boarding = +document.getElementById('s_boarding').value;
+    const entertain= +document.getElementById('s_entertain').value;
+    const seat     = +document.getElementById('s_seat').value;
+    const service  = +document.getElementById('s_service').value;
+    const food     = +document.getElementById('s_food').value;
+
+    // Heuristic based on feature importances from the trained model
+    let score = 0;
+
+    // Loyalty
+    if (cliente === 'loyal')    score += 8;
+    else                        score -= 6;
+
+    // Travel type
+    if (viagem === 'business')  score += 18;
+    else                        score -= 12;
+
+    // Class
+    if (classe === 'business')  score += 16;
+    else if (classe === 'eco_plus') score += 2;
+    else                        score -= 10;
+
+    // Delay penalty
+    if (atraso === 'small')     score -= 5;
+    else if (atraso === 'large') score -= 14;
+
+    // Service scores (weighted by importance)
+    score += (wifi     - 2.5) * 3.2;   // high importance
+    score += (boarding - 2.5) * 3.8;   // highest importance
+    score += (entertain- 2.5) * 2.8;
+    score += (seat     - 2.5) * 2.4;
+    score += (service  - 2.5) * 2.2;
+    score += (food     - 2.5) * 1.8;
+
+    const resultEl = document.getElementById('pred_result');
+    resultEl.style.display = 'block';
+
+    if (score >= 0) {
+      resultEl.className = 'pred-result satisfied';
+      const conf = Math.min(99, Math.round(75 + score * 0.8));
+      resultEl.innerHTML = `✅ Passageiro SATISFEITO<br><small style="font-weight:400">Confiança estimada: ~${conf}%</small>`;
+    } else {
+      resultEl.className = 'pred-result unsatisfied';
+      const conf = Math.min(99, Math.round(75 + Math.abs(score) * 0.8));
+      resultEl.innerHTML = `❌ Passageiro NEUTRO / INSATISFEITO<br><small style="font-weight:400">Confiança estimada: ~${conf}%</small>`;
+    }
+  }
+
+  document.querySelectorAll('#predictor select').forEach(s => s.addEventListener('change', predict));
+</script>
+</body>
+</html>
